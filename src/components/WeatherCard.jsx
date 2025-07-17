@@ -67,7 +67,7 @@ const WeatherCard = ({ weather }) => {
 
   return (
     // Apply transition classes: opacity-0 initially, then opacity-100 with duration
-    <div className={`mt-6 transition-opacity duration-2000 ease-in ${isVisible ? 'opacity-100' : 'opacity-0'} sm:max-w-dvw`}>
+    <div className={`mt-6 transition-opacity duration-2000 ease-in ${isVisible ? 'opacity-100' : 'opacity-0'} sm:max-w-dvw sm:mt-0`}>
       <h2 className='text-2xl font-semibold text-center'>
         {weather.name}, {weather.sys.country}
       </h2>
