@@ -116,7 +116,7 @@ function App() {
         muted
         key={currentVideo}
       >
-        <source src={currentVideo} type="video/mp4" />
+        <source src={currentVideo} type="video/mp4" className="autoplay loop"/>
         Your browser does not support the video background
       </video>
       <div className="absolute top-0 left-0 w-full h-full bg-black/20 z-10"></div>
