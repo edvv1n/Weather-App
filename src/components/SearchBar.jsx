@@ -190,6 +190,7 @@ const SearchBar = ({ fetchWeather }) => {
 
   return (
     // The main container for the search bar, set to relative for absolute positioning of suggestions
+    // Added `gap-2` for consistent spacing between input and button on mobile
     <div className="relative flex flex-col sm:flex-row gap-2 w-full" ref={searchBarRef}>
       {/* Search input form */}
       <form className="flex w-full" onSubmit={handleSubmit}>
@@ -202,11 +203,11 @@ const SearchBar = ({ fetchWeather }) => {
           onFocus={() => {
             if (suggestions.length > 0 || city.trim().length > 0 || error) setShowSuggestions(true);
           }}
-          className="p-2 border border-gray-300 outline-none flex-1 border-r-0 rounded-l-lg placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500"
+          className="p-2 border border-gray-300 outline-none flex-1 border-r-0 rounded-l-lg placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" // Adjusted font size
         />
         <button
           type="submit"
-          className="bg-blue-500 text-white cursor-pointer p-2 border-l-0 hover:bg-blue-600 rounded-r-lg px-4 py-2 transition-colors duration-200"
+          className="bg-blue-500 text-white cursor-pointer p-2 border-l-0 hover:bg-blue-600 rounded-r-lg px-4 py-2 transition-colors duration-200 text-sm sm:text-base" // Adjusted font size
         >
           Search
         </button>
@@ -215,20 +216,21 @@ const SearchBar = ({ fetchWeather }) => {
       {/* Conditional rendering for the suggestions list or error message */}
       {showSuggestions && (suggestions.length > 0 || loadingSuggestions || error) && (
         // Changed bg-white to bg-black and text-gray-900 to text-white for suggestions list
-        <ul className="absolute top-full left-0 right-0 bg-black text-white border border-gray-700 rounded-lg shadow-lg mt-1 z-10 max-h-60 overflow-y-auto">
+        // Added `w-full` to ensure it takes full width on smaller screens
+        <ul className="absolute top-full left-0 right-0 bg-black text-white border border-gray-700 rounded-lg shadow-lg mt-1 z-10 max-h-60 overflow-y-auto w-full">
           {loadingSuggestions ? (
             // Display loading message if suggestions are being fetched
-            <li className="p-2 text-gray-400">Loading suggestions...</li>
+            <li className="p-2 text-gray-400 text-sm sm:text-base">Loading suggestions...</li> /* Adjusted font size */
           ) : error ? (
             // Display error message if there's an API error
-            <li className="p-2 text-red-400">{error}</li>
+            <li className="p-2 text-red-400 text-sm sm:text-base">{error}</li> /* Adjusted font size */
           ) : (
             // Map and display each suggestion
             suggestions.map((sug, index) => (
               <li
                 key={index} // Using index as key for simplicity, consider unique IDs in real apps
                 // Changed hover:bg-gray-100 to hover:bg-gray-700 and border-gray-200 to border-gray-600
-                className="p-2 cursor-pointer hover:bg-gray-700 border-b border-gray-600 last:border-b-0"
+                className="p-2 cursor-pointer hover:bg-gray-700 border-b border-gray-600 last:border-b-0 text-sm sm:text-base" // Adjusted font size
                 onClick={() => handleSuggestionClick(sug)}
               >
                 {sug}
@@ -242,7 +244,8 @@ const SearchBar = ({ fetchWeather }) => {
       <button
         type="button"
         onClick={handleLocationClick}
-        className="bg-blue-500 text-white p-2 rounded-lg cursor-pointer hover:bg-blue-600 w-full sm:w-auto px-4 py-2 transition-colors duration-200 flex items-center justify-center"
+        // Added mt-2 for spacing on mobile, set to 0 on sm screens
+        className="bg-blue-500 text-white p-2 rounded-lg cursor-pointer hover:bg-blue-600 w-full sm:w-auto px-4 py-2 transition-colors duration-200 flex items-center justify-center mt-2 sm:mt-0 text-sm sm:text-base" // Adjusted font size
       >
         📍
       </button>
