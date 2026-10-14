@@ -1,134 +1,324 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import SearchBar from "./components/SearchBar";
-import axios from "axios";
 import WeatherCard from "./components/WeatherCard";
-
-// Object containing the video URLs for each weather condition
-// These keys match the 'main' weather condition string from the OpenWeatherMap API
-const videoSources = {
-  // Group 2xx: Thunderstorm
-  thunderstorm: "https://cdn.pixabay.com/video/2015/08/11/305-135918495_large.mp4",
-  
-  // Group 3xx: Drizzle
-  drizzle: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  
-  // Group 5xx: Rain
-  rain: "https://cdn.pixabay.com/video/2019/10/24/28236-368501609_large.mp4",
-  
-  // Group 6xx: Snow
-  snow: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  
-  // Group 7xx: Atmosphere (Mist, Smoke, Haze, Dust, Fog, Sand, Ash, Squall, Tornado)
-  mist: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  smoke: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  haze: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  dust: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  fog: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  sand: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  ash: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
-  squall: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4", // Using thunderstorm video for squall
-  tornado: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4", // Using thunderstorm video for tornado
-  
-  // Group 800: Clear
-  clear: "https://static.videezy.com/system/resources/previews/000/044/533/original/sky-timelapse-2.mp4",
-  
-  // Group 80x: Clouds
-  clouds: "https://cdn.pixabay.com/video/2019/02/11/21285-316701418_large.mp4",
-  
-  // A default video for any unmatched weather condition
-  default: "https://cdn.pixabay.com/video/2025/04/10/271161_large.mp4",
+import Forecast from "./components/Forecast";
+import VideoBackground from "./components/VideoBackground";
+import Icon from "./components/Icon";
+import useStoredState from "./hooks/useStoredState";
+import useLocalTheme from "./hooks/useLocalTheme";
+import { condition, getForecast, locationKey, placeLabel } from "./lib/weather";
+const validPlace = (p) =>
+  p &&
+  typeof p.name === "string" &&
+  Number.isFinite(p.latitude) &&
+  Number.isFinite(p.longitude);
+const validPlaces = (value) => Array.isArray(value) && value.every(validPlace);
+const initialPlace = {
+  name: "Lagos",
+  country: "Nigeria",
+  latitude: 6.4541,
+  longitude: 3.3947,
 };
-
-function App() {
-  const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [currentVideo, setCurrentVideo] = useState(videoSources.default);
-
-  const API_KEY = import.meta.env.VITE_API_KEY;
-  const API_URL = import.meta.env.VITE_API_URL;
-
-  // A helper function to determine the video URL based on weather condition
-  const getVideoByWeather = (mainWeather) => {
-    const weatherCondition = mainWeather.toLowerCase();
-    // Check if the weather condition exists in our videoSources object, otherwise use 'default'
-    return videoSources[weatherCondition] || videoSources.default;
-  };
-
-  const fetchWeather = async (query) => {
+export default function App() {
+  const [unit, setUnit] = useStoredState("weathered-unit", "C", (v) =>
+    ["C", "F"].includes(v),
+  );
+  const [saved, setSaved] = useStoredState("weathered-saved", [], validPlaces);
+  const [recent, setRecent] = useStoredState(
+    "weathered-recent",
+    [],
+    validPlaces,
+  );
+  const [place, setPlace] = useStoredState(
+    "weathered-place",
+    initialPlace,
+    validPlace,
+  );
+  const [result, setResult] = useState(null),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(true),
+    [locating, setLocating] = useState(false),
+    [retry, setRetry] = useState(0);
+  const { night, time, mode, cycleMode } = useLocalTheme(result?.data?.timezone);
+  const locationRequest = useRef(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () =>
+        controller.abort(
+          new DOMException(
+            "Weather request timed out. Please retry.",
+            "TimeoutError",
+          ),
+        ),
+      15000,
+    );
     setLoading(true);
     setError("");
-    try {
-      let url = "";
-      if (typeof query === "string") {
-        url = `${API_URL}?q=${query}&units=metric&appid=${API_KEY}`;
-      } else if (query && query.latitude && query.longitude) {
-        url = `${API_URL}?lat=${query.latitude}&lon=${query.longitude}&units=metric&appid=${API_KEY}`;
-      } else {
-        throw new Error("Invalid query provided.");
-      }
-
-      const response = await axios.get(url);
-      console.log(response.data);
-      setWeather(response.data);
-
-      // Get the weather condition from the API response
-      const mainWeather = response.data.weather[0].main;
-      // Set the new video URL based on the weather condition
-      setCurrentVideo(getVideoByWeather(mainWeather));
-
-    } catch (err) {
-      if (err.response && err.response.status === 404) {
-        setError("City not found. Check city and try again.");
-      } else {
-        setError("An error occurred. Please try again later.");
-      }
-      setWeather(null);
-      // Revert to the default video on error
-      setCurrentVideo(videoSources.default);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (navigator.geolocation) {
-      setLoading(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          fetchWeather({ latitude, longitude });
-        },
-        (error) => {
-          console.error("Error getting user location:", error);
+    getForecast(place, controller.signal, retry > 0)
+      .then((data) => {
+        if (!controller.signal.aborted) setResult({ data, place });
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError")
+          setError(
+            err.name === "TimeoutError"
+              ? "Weather request timed out. Please retry."
+              : err.message || "Unable to load weather. Check your connection.",
+          );
+      })
+      .finally(() => {
+        if (
+          !controller.signal.aborted ||
+          controller.signal.reason?.name === "TimeoutError"
+        )
           setLoading(false);
-        }
+      });
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [place, retry]);
+  function select(next) {
+    locationRequest.current += 1;
+    setLocating(false);
+    setPlace(next);
+    setRecent((previous) =>
+      [
+        next,
+        ...previous.filter((p) => locationKey(p) !== locationKey(next)),
+      ].slice(0, 5),
+    );
+  }
+  function locate() {
+    if (!navigator.geolocation) {
+      setError(
+        "Your browser does not support location. Search for a city instead.",
       );
+      return;
     }
-  }, []);
-
+    const request = ++locationRequest.current;
+    setLocating(true);
+    setError("");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (request !== locationRequest.current) return;
+        select({
+          name: "Current location",
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      () => {
+        if (request !== locationRequest.current) return;
+        setLocating(false);
+        setError(
+          "Location unavailable. Allow location access or search for a city.",
+        );
+      },
+      { timeout: 10000, maximumAge: 300000 },
+    );
+  }
+  const data = result?.data,
+    shownPlace = result?.place;
+  const isSaved =
+    shownPlace && saved.some((p) => locationKey(p) === locationKey(shownPlace));
+  const sky = data
+    ? condition(data.current.weather_code, data.current.is_day)
+    : { video: "clouds" };
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-blue-100 relative overflow-hidden">
-      <video
-        className="absolute top-0 left-0 w-full h-full object-cover transition-opacity duration-1000"
-        autoPlay
-        loop
-        muted
-        key={currentVideo}
-      >
-        <source src={currentVideo} type="video/mp4" className="autoplay loop"/>
-        Your browser does not support the video background
-      </video>
-      <div className="absolute top-0 left-0 w-full h-full bg-black/20 z-10"></div>
-      <div className="bg-black/70 text-white rounded-lg shadow-lg p-8 max-w-md w-full z-20">
-        <h1 className="text-3xl font-bold text-center mb-6">WeatherEd ☀</h1>
-        <SearchBar fetchWeather={fetchWeather} />
-        {loading && <p className="text-center mt-4">Loading...</p>}
-        {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-        {weather && <WeatherCard weather={weather} />}
+    <>
+      <VideoBackground kind={sky.video} night={night} />
+      <div className="app-shell">
+        <header>
+          <a className="brand" href="./">
+            <span className="brand-icon">
+              <Icon name="sun" size={25} />
+            </span>
+            WeatherEd<span className="brand-dot">.</span>
+          </a>
+          <div
+            className="header-note local-theme"
+            title={
+              mode === "auto"
+                ? "Theme follows the displayed city’s local time: day 06:00–17:59; night 18:00–05:59"
+                : "Manual theme selected"
+            }
+          >
+            <Icon name={night ? "moon" : "sun"} size={15} />
+            <span>
+              {night ? "Night" : "Day"} · {mode === "auto" ? "Auto" : "Manual"}{" "}
+              <span aria-hidden="true">·</span> {time ? `${time} in ${shownPlace?.name || "selected location"}` : "Waiting for city time"}
+            </span>
+          </div>
+          <div className="header-controls">
+            <button
+              className="theme-control"
+              onClick={cycleMode}
+              aria-label={`Theme: ${mode}. Switch to ${{ auto: "day", day: "night", night: "auto" }[mode]}`}
+              title="Cycle theme: Auto → Day → Night"
+            >
+              <Icon
+                name={
+                  mode === "auto" ? "clock" : mode === "day" ? "sun" : "moon"
+                }
+                size={17}
+              />
+              <span>{mode[0].toUpperCase() + mode.slice(1)}</span>
+            </button>
+            <div className="units" aria-label="Temperature unit">
+              {["C", "F"].map((value) => (
+                <button
+                  key={value}
+                  aria-pressed={unit === value}
+                  onClick={() => setUnit(value)}
+                >
+                  °{value}
+                </button>
+              ))}
+            </div>
+          </div>
+        </header>
+        <main>
+          <div className="toolbar">
+            <div>
+              <p className="eyebrow">LOOK UP. PLAN AHEAD.</p>
+              <p className="intro">Your day, in the clear.</p>
+            </div>
+            <SearchBar
+              onSelect={select}
+              onLocate={locate}
+              locating={locating}
+            />
+          </div>
+          {(saved.length > 0 || recent.length > 0) && (
+            <nav className="city-collections" aria-label="Your cities">
+              {saved.length > 0 && (
+                <div>
+                  <span>
+                    <Icon name="star" size={13} /> Saved
+                  </span>
+                  {saved.map((p) => (
+                    <div className="city-chip" key={locationKey(p)}>
+                      <button title={placeLabel(p)} onClick={() => select(p)}>
+                        {p.name}
+                      </button>
+                      <button
+                        aria-label={`Remove ${p.name} from saved cities`}
+                        onClick={() =>
+                          setSaved((list) =>
+                            list.filter(
+                              (item) => locationKey(item) !== locationKey(p),
+                            ),
+                          )
+                        }
+                      >
+                        <Icon name="close" size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recent.length > 0 && (
+                <div>
+                  <span>Recent</span>
+                  {recent
+                    .filter(
+                      (p) =>
+                        !saved.some((s) => locationKey(s) === locationKey(p)),
+                    )
+                    .map((p) => (
+                      <button
+                        className="recent-city"
+                        key={locationKey(p)}
+                        title={placeLabel(p)}
+                        onClick={() => select(p)}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  <button
+                    className="clear-history"
+                    onClick={() => setRecent([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </nav>
+          )}
+          <div className="status-area" aria-live="polite">
+            {locating
+              ? "Finding your location…"
+              : loading
+                ? `Getting the latest for ${place.name}…`
+                : ""}
+          </div>
+          {error && (
+            <div className="error" role="alert">
+              <span>
+                {error}
+                {result && " Previous weather remains below."}
+              </span>
+              <button onClick={() => setRetry((v) => v + 1)}>Retry</button>
+            </div>
+          )}
+          {data ? (
+            <div
+              className={`weather-layout ${loading ? "updating" : ""}`}
+              aria-busy={loading}
+            >
+              <WeatherCard
+                data={data}
+                place={shownPlace}
+                unit={unit}
+                saved={isSaved}
+                onSave={() =>
+                  setSaved((list) =>
+                    isSaved
+                      ? list.filter(
+                          (p) => locationKey(p) !== locationKey(shownPlace),
+                        )
+                      : [...list, shownPlace].slice(-10),
+                  )
+                }
+              />
+              <Forecast data={data} unit={unit} />
+            </div>
+          ) : (
+            <div className="empty-state">
+              <Icon name="cloud" size={80} />
+              <h1>
+                {loading
+                  ? "A moment for the weather."
+                  : "A fresh outlook awaits."}
+              </h1>
+              <p>
+                {loading
+                  ? "Gathering current conditions and your forecast."
+                  : "Search for a city, or retry when you’re connected."}
+              </p>
+            </div>
+          )}
+          {data && (
+            <div className="weather-meta">
+              <span>
+                Forecast data · {data.current.time.replace("T", " at ")} ·{" "}
+                {data.timezone.replaceAll("_", " ")}
+              </span>
+              <button onClick={() => setRetry((v) => v + 1)} disabled={loading}>
+                <Icon name="refresh" size={13} /> Check for updates
+              </button>
+            </div>
+          )}
+        </main>
+        <footer>
+          <span>Whatever the weather, make it your day.</span>
+          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+            Weather data by Open-Meteo ↗
+          </a>
+        </footer>
       </div>
-    </div>
+    </>
   );
 }
-
-export default App;
