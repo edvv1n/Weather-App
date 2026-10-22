@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { readPlaceRoute, placeURL } from "./lib/placeRoute";
 import SearchBar from "./components/SearchBar";
 import WeatherCard from "./components/WeatherCard";
 import Forecast from "./components/Forecast";
@@ -33,6 +34,7 @@ export default function App() {
     "weathered-place",
     initialPlace,
     validPlace,
+    readPlaceRoute(window.location.search) || undefined,
   );
   const [result, setResult] = useState(null),
     [error, setError] = useState(""),
@@ -41,6 +43,26 @@ export default function App() {
     [retry, setRetry] = useState(0);
   const { night, time, mode, cycleMode } = useLocalTheme(result?.data?.timezone);
   const locationRequest = useRef(0);
+  const [locationError, setLocationError] = useState("");
+  const [clearedRecent, setClearedRecent] = useState(null);
+  // Register once; the state setter only depends on this fixed storage key.
+  const restorePlace = useRef(setPlace);
+  useEffect(() => {
+    window.history.replaceState(null, "", placeURL(place, window.location.href));
+    const navigate = () => {
+      const next = readPlaceRoute(window.location.search);
+      if (next) {
+        locationRequest.current += 1;
+        setLocating(false);
+        setLocationError("");
+        restorePlace.current(next);
+      }
+    };
+    window.addEventListener("popstate", navigate);
+    return () => window.removeEventListener("popstate", navigate);
+    // Only initialize the current history entry on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(
@@ -82,6 +104,10 @@ export default function App() {
   function select(next) {
     locationRequest.current += 1;
     setLocating(false);
+    setLocationError("");
+    const url = placeURL(next, window.location.href);
+    if (url !== window.location.pathname + window.location.search + window.location.hash)
+      window.history.pushState(null, "", url);
     setPlace(next);
     setRecent((previous) =>
       [
@@ -92,14 +118,14 @@ export default function App() {
   }
   function locate() {
     if (!navigator.geolocation) {
-      setError(
+      setLocationError(
         "Your browser does not support location. Search for a city instead.",
       );
       return;
     }
     const request = ++locationRequest.current;
     setLocating(true);
-    setError("");
+    setLocationError("");
     navigator.geolocation.getCurrentPosition(
       (position) => {
         if (request !== locationRequest.current) return;
@@ -109,12 +135,12 @@ export default function App() {
           longitude: position.coords.longitude,
         });
       },
-      () => {
+      (failure) => {
         if (request !== locationRequest.current) return;
         setLocating(false);
-        setError(
-          "Location unavailable. Allow location access or search for a city.",
-        );
+        setLocationError(failure.code === 1
+          ? "Location access denied. Enable location permission in your browser’s site settings, then retry, or search for a city."
+          : "Location unavailable. Retry or search for a city.");
       },
       { timeout: 10000, maximumAge: 300000 },
     );
@@ -128,7 +154,6 @@ export default function App() {
     : { video: "clouds" };
   return (
     <>
-      <VideoBackground kind={sky.video} night={night} />
       <div className="app-shell">
         <header>
           <a className="brand" href="./">
@@ -191,7 +216,7 @@ export default function App() {
               locating={locating}
             />
           </div>
-          {(saved.length > 0 || recent.length > 0) && (
+          {(
             <nav className="city-collections" aria-label="Your cities">
               {saved.length > 0 && (
                 <div>
@@ -239,10 +264,22 @@ export default function App() {
                     ))}
                   <button
                     className="clear-history"
-                    onClick={() => setRecent([])}
+                    onClick={() => { setClearedRecent(recent); setRecent([]); }}
                   >
-                    Clear
+                    Clear recent
                   </button>
+                </div>
+              )}
+              {clearedRecent && (
+                <div className="history-undo" role="status">
+                  <span>Recent cities cleared.</span>
+                  <button onClick={() => {
+                    setRecent((current) => [...current, ...clearedRecent.filter(
+                      (p) => !current.some((c) => locationKey(c) === locationKey(p))
+                    )].slice(0, 5));
+                    setClearedRecent(null);
+                  }}>Undo</button>
+                  <button aria-label="Dismiss undo" onClick={() => setClearedRecent(null)}>Dismiss</button>
                 </div>
               )}
             </nav>
@@ -254,6 +291,12 @@ export default function App() {
                 ? `Getting the latest for ${place.name}…`
                 : ""}
           </div>
+          {locationError && (
+            <div className="error" role="alert">
+              <span>{locationError}{result && " Previous weather remains below."}</span>
+              <button onClick={locate} disabled={locating}>Retry location</button>
+            </div>
+          )}
           {error && (
             <div className="error" role="alert">
               <span>
@@ -312,6 +355,7 @@ export default function App() {
             </div>
           )}
         </main>
+        <div className="background-controls"><VideoBackground kind={sky.video} night={night} /></div>
         <footer>
           <span>Whatever the weather, make it your day.</span>
           <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">

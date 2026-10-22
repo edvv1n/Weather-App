@@ -8,6 +8,7 @@ export default function SearchBar({ onSelect, onLocate, locating }) {
     [status, setStatus] = useState(""),
     [active, setActive] = useState(-1);
   const wrapper = useRef(null);
+  const interacting = useRef(false);
   useEffect(() => {
     if (query.trim().length < 2) return;
     const controller = new AbortController();
@@ -30,7 +31,8 @@ export default function SearchBar({ onSelect, onLocate, locating }) {
   }, [query]);
   useEffect(() => {
     const outside = (event) => {
-      if (!wrapper.current?.contains(event.target)) setOpen(false);
+      interacting.current = !!wrapper.current?.contains(event.target);
+      if (!interacting.current) setOpen(false);
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
@@ -46,8 +48,9 @@ export default function SearchBar({ onSelect, onLocate, locating }) {
     <div
       className="search-wrap"
       ref={wrapper}
+      onKeyDownCapture={() => { interacting.current = false; }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+        if (!interacting.current && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
       }}
     >
       <form
@@ -78,6 +81,7 @@ export default function SearchBar({ onSelect, onLocate, locating }) {
             setOpen(true);
           }}
           onKeyDown={(e) => {
+            interacting.current = false;
             if (e.key === "Escape") {
               setOpen(false);
               setActive(-1);
@@ -127,8 +131,15 @@ export default function SearchBar({ onSelect, onLocate, locating }) {
                 aria-selected={active === i}
                 id={`city-${i}`}
                 key={locationKey(place)}
-                onPointerDown={(e) => e.preventDefault()}
+                tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(place)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    choose(place);
+                  }
+                }}
                 className={active === i ? "selected" : ""}
               >
                 <Icon name="pin" size={16} />

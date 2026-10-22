@@ -1,6 +1,7 @@
 import { useState } from "react";
-export default function useStoredState(key, fallback, validate = () => true) {
+export default function useStoredState(key, fallback, validate = () => true, initialOverride) {
   const [value, setValue] = useState(() => {
+    if (initialOverride !== undefined) return initialOverride;
     try {
       const data = JSON.parse(localStorage.getItem(key));
       return data !== null && validate(data) ? data : fallback;

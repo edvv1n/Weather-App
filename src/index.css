@@ -1124,3 +1124,16 @@ input:focus-visible {
     display: none;
   }
 }
+
+/* Keep utility controls in flow and reserve stable room for city shortcuts. */
+.background-controls { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0; }
+.background-control { position: static; transform: none; min-height: 44px; flex-shrink: 0; }
+.background-status { color: var(--ink); font-size: 12px; }
+.city-collections { min-height: 44px; flex-wrap: nowrap; overflow-x: auto; align-items: center; }
+.city-collections > div { flex-wrap: nowrap; flex-shrink: 0; }
+.city-collections button { min-height: 36px; white-space: nowrap; }
+.history-undo button { background: var(--glass-strong); color: var(--ink); border-radius: 16px; padding: 8px 12px; }
+.suggestions { z-index: 20; }
+.suggestions ul { max-height: min(320px, 40vh); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.suggestions li { min-height: 44px; touch-action: manipulation; }
+@media (max-width: 650px) { .search input { font-size: 16px; } }
